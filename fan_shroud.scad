@@ -15,14 +15,19 @@
 //   * Eight bolt ears around the rim, each with a hole and a captive hex-nut
 //     pocket on the back. The plate has matching holes. M4 bolts + nuts.
 //   * Optional extra clearance around the fan in the sleeve (fan_clearance).
+//   * The whole shroud (ears included) is scaled by shroud_scale (101 %) about the
+//     fan axis on the rim face, to give different fans some tolerance. The plate
+//     outline and its ear bolt holes follow that scale. The fan holes stay at
+//     105 mm spacing and the fan opening is unscaled.
 //
 // Printing: the shroud is meant to print standing on its -Y end face (the closed
 // end of the fan box). That face stays perfectly flat. The four ears next to it
 // sit flush on the bed for extra adhesion, and every other ear overhang is
 // chamfered (< 45 deg), so no supports are needed. The plate prints flat.
 //
-// Render a part with:   openscad -D 'part="shroud"' -o shroud.stl fan_shroud.scad
-//                       openscad -D 'part="plate"'  -o plate.stl  fan_shroud.scad
+// Render a part with:   openscad -D 'part="shroud_print"' -o shroud.stl fan_shroud.scad
+//                       openscad -D 'part="plate"'        -o plate.stl  fan_shroud.scad
+// The shroud STL already includes the 101 % scale. Print it at 100 % in the slicer.
 
 part = "assembly";      // "assembly" | "shroud" | "plate" | "shroud_print" (stood up for slicing)
 
@@ -33,6 +38,9 @@ fan_hole_d     = 4.5;    // M4 bolt or standard fan screw
 fan_opening_d  = 116;    // air opening in the plate
 fan_center     = [-1.37, -1.86];   // [Y, Z] of the fan axis in the original model
 fan_clearance  = 0.4;    // extra room per side around the fan inside the sleeve (0 = original)
+
+/* [Scale] */
+shroud_scale   = 1.01;   // whole-shroud scale, about the fan axis on the rim face
 
 /* [Bolts: M4] */
 bolt_d        = 4.6;     // clearance hole
@@ -151,7 +159,15 @@ module ear(e) {
   }
 }
 
-module shroud() {
+// Scale a [Y, Z] point of the unscaled design about the fan axis.
+function sc(p) = fan_center + (p - fan_center) * shroud_scale;
+
+module shroud() {      // scaled about the fan axis on the rim face: [rim_x, fan_center]
+  translate([rim_x, fan_center[0], fan_center[1]]) scale(shroud_scale)
+    translate([-rim_x, -fan_center[0], -fan_center[1]]) shroud_unscaled();
+}
+
+module shroud_unscaled() {
   difference() {
     union() { shroud_body(); for (e = ears) ear(e); }
     // re-drill the bolt holes in case an ear base overlaps a wall
@@ -161,17 +177,18 @@ module shroud() {
 }
 
 // ---------------------------------------------------------------- plate
-// 2D in (Y, Z). Completely flat slab that bolts against the rim face.
+// 2D in (Y, Z). Completely flat slab that bolts against the rim face. Its outline and
+// ear bolt holes follow the shroud scale. The fan holes and opening do not.
 module plate_2d() {
   difference() {
     hull() {
-      translate([y_end, z_bot]) square([y_far - y_end, z_top - z_bot]);
-      for (e = ears) translate(ear_yz(e)) circle(ear_r);
+      translate(sc([y_end, z_bot])) square([y_far - y_end, z_top - z_bot] * shroud_scale);
+      for (e = ears) translate(sc(ear_yz(e))) circle(ear_r * shroud_scale);
     }
     translate(fan_center) circle(d = fan_opening_d, $fn = 180);
     for (sy = [-1, 1], sz = [-1, 1])
       translate(fan_center + [sy, sz] * fan_hole_pitch / 2) circle(d = fan_hole_d, $fn = 32);
-    for (e = ears) translate(ear_yz(e)) circle(d = bolt_d, $fn = 32);
+    for (e = ears) translate(sc(ear_yz(e))) circle(d = bolt_d, $fn = 32);
   }
 }
 
@@ -194,6 +211,6 @@ if (part == "assembly") {
   %fan_ghost();
 }
 if (part == "shroud") shroud();
-// Stood on its -Y end face (Y = y_end lands on Z = 0) for slicing.
-if (part == "shroud_print") translate([0, 0, -y_end]) rotate([90, 0, 0]) shroud();
+// Stood on its -Y end face (the scaled Y = y_end lands on Z = 0) for slicing.
+if (part == "shroud_print") translate([0, 0, -sc([y_end, 0])[0]]) rotate([90, 0, 0]) shroud();
 if (part == "plate") linear_extrude(plate_t) plate_2d();
