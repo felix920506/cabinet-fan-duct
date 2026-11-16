@@ -12,7 +12,7 @@
 //     is removed.
 //   * The fan screws to a separate, completely flat plate that closes the open
 //     +X face. The fan sits where it did before (X -2.86..22.14).
-//   * Eight bolt ears around the rim, each with a hole and a captive hex-nut
+//   * Four bolt ears around the rim, each with a hole and a captive hex-nut
 //     pocket on the back. The plate has matching holes. M4 bolts + nuts.
 //   * Optional extra clearance around the fan in the sleeve (fan_clearance).
 //   * The whole shroud (ears included) is scaled by shroud_scale (101 %) about the
@@ -21,7 +21,7 @@
 //     105 mm spacing and the fan opening is unscaled.
 //
 // Printing: the shroud is meant to print standing on its -Y end face (the closed
-// end of the fan box). That face stays perfectly flat. The four ears next to it
+// end of the fan box). That face stays perfectly flat. The two ears next to it
 // sit flush on the bed for extra adhesion, and every other ear overhang is
 // chamfered (< 45 deg), so no supports are needed. The plate prints flat.
 //
@@ -51,7 +51,11 @@ ear_r         = 7;       // ear tip radius; bolt centre is ear_r from the wall
 
 /* [Plate] */
 plate_t       = 4;
-plate_round   = 4;
+// The plate is a plain rectangle with rounded corners, symmetric about the fan axis, which suits
+// laser cutting. The corner radius equals the ear tip radius, so each corner is concentric with its
+// bolt hole.
+ear_pitch_y   = 110;     // unscaled spacing of the ear bolts along Y (bed ear sits flush on the bed;
+                         // the opposite ear ends flush with the far end of the fan box)
 
 $fn = 64;
 eps = 0.01;
@@ -128,10 +132,10 @@ module ear_2d(type) {
 
 // Ear list: [placement, along-wall coordinate of bolt, profile type]
 //   "top"/"bot": on the Z caps, u = Y.   "far": on the +Y end wall, u = Z.
+// Four ears, one at each corner of the rim face, symmetric about the fan axis.
 ears = [
-  ["top", y_end + ear_r, "bed"], ["top", -5, "chamfer"], ["top", 46, "chamfer"],
-  ["bot", y_end + ear_r, "bed"], ["bot", -5, "chamfer"], ["bot", 46, "chamfer"],
-  ["far", fan_center[1] + 38, "plain"], ["far", fan_center[1] - 38, "plain"],
+  ["top", fan_center[0] - ear_pitch_y / 2, "bed"], ["top", fan_center[0] + ear_pitch_y / 2, "chamfer"],
+  ["bot", fan_center[0] - ear_pitch_y / 2, "bed"], ["bot", fan_center[0] + ear_pitch_y / 2, "chamfer"],
 ];
 
 // Transform (u, v, w) to world space. w runs along -X from the rim face.
@@ -179,12 +183,19 @@ module shroud_unscaled() {
 // ---------------------------------------------------------------- plate
 // 2D in (Y, Z). Completely flat slab that bolts against the rim face. Its outline and
 // ear bolt holes follow the shroud scale. The fan holes and opening do not.
+// Half-size: the larger of the fan box and the ear tips, in each direction (unscaled).
+plate_half = [
+  max(y_far - fan_center[0], fan_center[0] - y_end, ear_pitch_y / 2 + ear_r),
+  max(z_top - fan_center[1], fan_center[1] - z_bot, z_top + 2 * ear_r - fan_center[1],
+      fan_center[1] - (z_bot - 2 * ear_r))
+];
+plate_size     = 2 * plate_half * shroud_scale;   // [Y, Z] outside dimensions
+plate_corner_r = ear_r * shroud_scale;
+
 module plate_2d() {
   difference() {
-    hull() {
-      translate(sc([y_end, z_bot])) square([y_far - y_end, z_top - z_bot] * shroud_scale);
-      for (e = ears) translate(sc(ear_yz(e))) circle(ear_r * shroud_scale);
-    }
+    translate(fan_center) offset(r = plate_corner_r)
+      square(plate_size - 2 * [plate_corner_r, plate_corner_r], center = true);
     translate(fan_center) circle(d = fan_opening_d, $fn = 180);
     for (sy = [-1, 1], sz = [-1, 1])
       translate(fan_center + [sy, sz] * fan_hole_pitch / 2) circle(d = fan_hole_d, $fn = 32);
@@ -214,3 +225,5 @@ if (part == "shroud") shroud();
 // Stood on its -Y end face (the scaled Y = y_end lands on Z = 0) for slicing.
 if (part == "shroud_print") translate([0, 0, -sc([y_end, 0])[0]]) rotate([90, 0, 0]) shroud();
 if (part == "plate") linear_extrude(plate_t) plate_2d();
+if (part == "plate_dxf") translate(-fan_center) plate_2d();   // 2D outline for laser cutting, origin at fan centre
+echo(plate_size = plate_size, plate_corner_r = plate_corner_r);
