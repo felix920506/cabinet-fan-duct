@@ -34,7 +34,7 @@ part = "assembly";      // "assembly" | "shroud" | "plate" | "shroud_print" (sto
 /* [Fan] */
 fan_size       = 120;
 fan_hole_pitch = 105;    // standard 120 mm fan
-fan_hole_d     = 4.5;    // M4 bolt or standard fan screw
+fan_hole_d     = 5.5;    // clearance for standard self-tapping fan screws (they bite into the fan, not the plate)
 fan_opening_d  = 116;    // air opening in the plate
 fan_center     = [-1.37, -1.86];   // [Y, Z] of the fan axis in the original model
 fan_clearance  = 0.4;    // extra room per side around the fan inside the sleeve (0 = original)
